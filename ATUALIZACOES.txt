@@ -1,0 +1,189 @@
+ORVYN — SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA VIA GOOGLE DRIVE
+============================================================
+Última revisão: 13/07/2026
+
+
+1. VISÃO GERAL
+---------------
+O ORVYN verifica sozinho, a cada abertura (e sob demanda, pelo botão
+"Verificar Atualização Agora" em Configurações, ou pelo Super Admin),
+se existe uma versão mais nova publicada no Google Drive. Se existir,
+pergunta ao usuário se quer atualizar agora; se confirmado, baixa,
+confere a integridade do arquivo e troca os arquivos sozinho, sem
+precisar reinstalar nada manualmente.
+
+Arquivos envolvidos:
+  - version.txt              -> versão instalada localmente (ex.: 1.0.0)
+  - manifest.json (no Drive)  -> aponta qual é a versão mais nova
+  - utils/atualizador.py      -> toda a lógica de checagem/download/troca
+  - admin_panel/app.py (aba "Atualizações") -> gera o manifest.json
+
+
+2. O ARQUIVO manifest.json
+----------------------------
+Fica hospedado no Google Drive (não no seu servidor). Formato:
+
+{
+  "versao": "1.1.0",
+  "url_download": "https://drive.google.com/uc?export=download&id=XXXX",
+  "sha256": "a1b2c3...",
+  "notas": "Correção no PDV e novo relatório de estoque."
+}
+
+- "versao": comparada com version.txt local (formato X.Y.Z).
+- "url_download": link direto do .zip da nova versão completa do app.
+- "sha256": hash de integridade do .zip (evita atualizar com arquivo
+  corrompido ou adulterado no meio do caminho).
+- "notas": texto mostrado ao usuário antes de confirmar a atualização.
+
+O app SÓ baixa automaticamente o manifest.json (arquivo pequeno, texto
+puro, não executa nada). O .zip da atualização só é baixado depois que
+o usuário confirma na caixa de diálogo.
+
+
+3. COMO PUBLICAR UMA NOVA VERSÃO (passo a passo manual)
+----------------------------------------------------------
+a) Gere o instalável/pacote da nova versão com os scripts em packaging/
+   (build_windows.bat / build_macos.sh / build_linux.sh), OU deixe o
+   GitHub Actions gerar (.github/workflows/build.yml) a cada tag "vX.Y.Z".
+   Windows/Linux agora geram um ÚNICO arquivo (ORVYN.exe / ORVYN), sem
+   pasta cheia de dlls soltas; macOS gera o ORVYN.app (ícone único).
+
+b) Compacte a pasta de saída (dist/ORVYN) em um .zip, ex.: orvyn_1.1.0.zip
+   O conteúdo do zip é a raiz da instalação (mesma estrutura de pastas).
+
+c) Suba o orvyn_1.1.0.zip no Google Drive:
+     - Botão direito -> Compartilhar -> "Qualquer pessoa com o link"
+     - Copie o link (formato: https://drive.google.com/file/d/ID/view)
+     - O sistema converte esse link automaticamente para o formato de
+       download direto (uc?export=download&id=ID); pode colar o link
+       normal do Drive mesmo, tanto no manifest quanto no .env.
+
+d) Abra o Painel Super Admin (admin_panel/app.py) -> aba "Atualizações":
+     - Preencha a versão (1.1.0), cole o link do .zip, escreva as notas.
+     - Clique em "Selecionar .zip da versão (calcular SHA-256)" e
+       aponte para o MESMO .zip que você subiu no Drive (o painel
+       calcula o hash localmente, não precisa baixar nada).
+     - Clique em "Gerar manifest.json" e salve o arquivo.
+
+e) Suba esse manifest.json no Google Drive também, com compartilhamento
+   público, e copie o link dele.
+
+f) Configure esse link uma única vez por instalação, no arquivo .env:
+     ORVYN_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST/view
+
+   (Se preferir, distribua o .env já com essa variável preenchida em
+   todas as instalações novas, para não precisar configurar em cada uma.)
+
+g) Pronto. Na próxima abertura do ORVYN em qualquer máquina (ou ao
+   clicar em "Verificar Atualização Agora"), o app vai enxergar a nova
+   versão e perguntar se quer atualizar.
+
+
+4. O QUE ACONTECE TECNICAMENTE QUANDO O USUÁRIO CONFIRMA A ATUALIZAÇÃO
+--------------------------------------------------------------------------
+1. Download do .zip para uma pasta temporária do sistema operacional.
+2. Cálculo do SHA-256 do arquivo baixado e comparação com o valor do
+   manifest.json. Se não bater, a atualização é cancelada e o arquivo
+   é apagado (evita instalar algo corrompido ou trocado no meio do caminho).
+3. O .zip é extraído para uma pasta temporária (ainda não sobrescreve nada).
+4. É gerado um pequeno script "aplicador":
+     - Windows: um .bat que usa `robocopy`
+     - macOS/Linux: um .sh que usa `rsync`
+5. Esse script é disparado como processo INDEPENDENTE do ORVYN, e o
+   ORVYN principal se fecha logo em seguida (isso evita o clássico
+   problema de um programa tentar sobrescrever seu próprio .exe
+   enquanto está rodando).
+6. O script aplicador espera o processo do ORVYN (pelo PID) realmente
+   encerrar, copia os arquivos novos por cima dos antigos, e abre o
+   ORVYN de novo — tudo isso em poucos segundos, sem intervenção do
+   usuário.
+7. NUNCA são sobrescritos ou apagados: database.db, .env, version.txt,
+   e as pastas reports/, exports/, comprovantes/, assets/images/
+   (dados e configurações específicos daquela instalação/empresa).
+
+
+5. CHECAGEM AUTOMÁTICA VS. MANUAL
+------------------------------------
+- Automática: 4 segundos após o login, em background (thread separada,
+  não trava a interface). Se achar versão nova, mostra uma caixa de
+  diálogo perguntando se quer atualizar.
+- Manual: botão "Verificar Atualização Agora" em Configurações — o mesmo
+  fluxo, disparado na hora.
+- Não existe atualização silenciosa/forçada sem o usuário confirmar.
+  Isso é proposital: numa loja/clínica, ninguém quer o sistema reiniciar
+  sozinho no meio de uma venda.
+
+
+6. LIMITAÇÕES HONESTAS (leia antes de depender disso em produção)
+----------------------------------------------------------------------
+- O Google Drive não foi feito para ser um CDN de atualização de
+  software: contas gratuitas têm cota de download diária por arquivo
+  (fica temporariamente indisponível se muitas máquinas baixarem o
+  mesmo .zip no mesmo dia). Para poucas instalações (dezenas) não é
+  problema; para centenas, considere migrar o .zip/manifest para algo
+  como GitHub Releases (gratuito, sem esse limite) — a lógica do
+  atualizador.py não muda, só a URL.
+- O robocopy/rsync do passo 4 exigem que a pasta de instalação tenha
+  permissão de escrita pelo usuário do sistema operacional (em Program
+  Files no Windows, normalmente é preciso instalar em modo usuário ou
+  rodar como administrador na primeira instalação).
+
+
+7. ATUALIZANDO O PAINEL SUPER ADMIN (ORVYN-Master.exe)
+-----------------------------------------------------------
+O Master usa o MESMO mecanismo (utils/atualizador.py), mas com
+manifest.json/versão SEPARADOS do app da loja — são pastas de
+instalação diferentes, cada uma com seu próprio version.txt.
+
+a) Publique o zip do Master (dist\ORVYN-Master.exe) e o manifest.json
+   dele no Drive, exatamente como no passo 3 (a-e), só que apontando
+   pro executável ORVYN-Master.exe.
+   OBS: o manifest.json do Master é gerado no MESMO painel Atualizações
+   (aba do próprio Master) — só cuide de gerar um manifest.json
+   diferente do da loja (arquivo separado no Drive, link separado).
+
+b) No .env da(s) máquina(s) que rodam o Master, preencha:
+     ORVYN_MASTER_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST_DO_MASTER/view
+
+c) O Master checa sozinho 4s após o login (igual ao app da loja) e
+   também tem botão manual "Verificar atualização do Master" no topo
+   do painel. Como só roda na sua própria máquina, normalmente nem
+   precisa desse fluxo automático — dá pra só rodar o instalador novo
+   (superadmin_installer.iss) por cima da instalação existente.
+
+
+8. BLOQUEIO DE ACESSO À NUVEM POR INADIMPLÊNCIA (Super Admin)
+------------------------------------------------------------------
+Isso é uma funcionalidade separada da atualização de versão, mas mora
+no mesmo painel: cada Empresa tem um campo `nuvem_liberada` (true por
+padrão). No Painel Super Admin, aba "Empresas", o botão "Bloquear
+nuvem" / "Liberar nuvem" liga e desliga esse campo diretamente no banco
+da nuvem.
+
+- Com nuvem_liberada = False: o app da empresa continua funcionando
+  100% normalmente de forma LOCAL (banco SQLite local intacto), mas
+  para de sincronizar/enviar dados para a nuvem até ser reativado.
+- Isso é independente do bloqueio de LOGIN por mensalidade em atraso
+  (Usuario.bloqueado), que já existia e impede login completamente.
+  Use o bloqueio de nuvem para os casos em que você quer deixar a
+  empresa continuar usando o sistema localmente, mas sem backup/acesso
+  multi-dispositivo via nuvem enquanto ela está inadimplente.
+
+
+9. SOBRE PROTEÇÃO CONTRA CÓPIA DO SISTEMA
+----------------------------------------------
+Sendo direto: não existe "criptografia" que torne um aplicativo Python
+desktop 100% impossível de copiar ou de ter o código lido por alguém
+com tempo e conhecimento técnico — isso vale pra qualquer app desktop,
+não só Python. O que os scripts em packaging/ fazem, na prática:
+
+- Compilam o app com PyInstaller: o cliente final recebe um executável
+  binário com o bytecode Python empacotado, não os arquivos .py soltos
+  (já eleva bastante a barreira para o usuário comum, embora não seja
+  inquebrável para quem sabe usar ferramentas de descompilação).
+- A trava de negócio real do sistema é o login: cada usuário depende de
+  autenticação contra a nuvem (Supabase) e do campo bloqueado/mensalidade
+  em dia. Copiar a pasta do programa para outro PC não dá acesso a nada
+  sem login válido — e o Super Admin pode bloquear qualquer empresa a
+  qualquer momento (login inteiro ou só a nuvem, ver seção 7).

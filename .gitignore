@@ -1,0 +1,13 @@
+.env
+database.db
+database.db-shm
+database.db-wal
+device_id.txt
+reports/
+exports/
+comprovantes/
+build/
+dist/
+packaging/_build_stub/
+__pycache__/
+*.pyc

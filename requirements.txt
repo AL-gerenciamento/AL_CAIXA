@@ -1,0 +1,15 @@
+customtkinter
+matplotlib
+qrcode
+sqlalchemy
+psycopg2-binary
+python-dotenv
+bcrypt
+reportlab
+pillow
+pymupdf
+pywin32; sys_platform == "win32"
+httpx
+pandas
+openpyxl
+cryptography
