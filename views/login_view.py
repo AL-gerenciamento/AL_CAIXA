@@ -4,6 +4,7 @@ Tela de login e cadastro do primeiro usuário administrador.
 """
 import customtkinter as ctk
 from tkinter import messagebox
+import threading
 
 from controllers.usuario_controller import UsuarioController
 from controllers.empresa_controller import EmpresaController
@@ -13,6 +14,7 @@ from controllers.sync_controller import sincronizar
 from models import Permissao, TipoPessoa
 from utils.validators import ValidationError, validar_data
 from utils.mascaras import aplicar_mascara_cpf, aplicar_mascara_cnpj, aplicar_mascara_data
+from utils import nuvem_auth
 
 
 class LoginView(ctk.CTkFrame):
@@ -85,6 +87,17 @@ class LoginView(ctk.CTkFrame):
             fg_color="transparent", border_width=1, command=self._abrir_cadastro
         ).pack(padx=40, pady=(0, 15))
 
+        # Link para instalações novas (PC diferente do que fez o cadastro
+        # original): o banco local está vazio, então login normal nunca vai
+        # achar o usuário. Precisa autenticar o dispositivo na nuvem com o
+        # código de ativação antes de puxar os dados existentes.
+        link_ativar = ctk.CTkLabel(
+            container, text="Ativar esta instalação (novo computador)",
+            text_color=("#3B8ED0", "#6FB3EF"), cursor="hand2", font=ctk.CTkFont(size=11)
+        )
+        link_ativar.pack(pady=(0, 10))
+        link_ativar.bind("<Button-1>", lambda e: self._abrir_ativacao())
+
         ctk.CTkLabel(
             container,
             text="Login no formato usuario@SIGLA (a sigla é definida no\ncadastro da empresa).",
@@ -96,36 +109,53 @@ class LoginView(ctk.CTkFrame):
         senha = self.entry_senha.get()
         try:
             usuario = UsuarioController.autenticar(login, senha)
-            if usuario is None:
-                # Não achou localmente — pode ser um usuário criado em outro
-                # PC que ainda não chegou neste banco (sync só roda depois do
-                # primeiro login). Tenta sincronizar agora e checa de novo
-                # antes de desistir. connect_timeout=5 no engine da nuvem
-                # garante que isso não trave a tela por muito tempo sem internet.
-                self._tentando_nuvem(True)
-                try:
-                    sincronizar()
-                except Exception:
-                    pass  # sem internet/nuvem fora do ar: segue só com o que já tinha localmente
-                finally:
-                    self._tentando_nuvem(False)
-                usuario = UsuarioController.autenticar(login, senha)
         except ValidationError as e:
-            mensagem = str(e)
-            if "verificado" in mensagem:
-                pendente = UsuarioController.usuario_nao_verificado(login)
-                if pendente:
-                    JanelaVerificacaoEmail(self, pendente, ao_verificar=lambda: None)
-                    return
-            if "Mensalidade" in mensagem:
-                JanelaBloqueioPagamento(self, login, mensagem)
-                return
-            messagebox.showerror("Acesso bloqueado", mensagem)
+            self._tratar_validation_error(login, e)
+            return
+
+        if usuario is not None:
+            self.ao_autenticar(usuario)
+            return
+
+        # Não achou localmente — pode ser um usuário criado em outro PC
+        # que ainda não chegou neste banco (sync só roda depois do
+        # primeiro login). Tenta sincronizar agora e checa de novo antes
+        # de desistir. Roda em thread separada: sincronizar() faz chamadas
+        # de rede e travaria a janela toda se rodasse na thread principal.
+        self._tentando_nuvem(True)
+
+        def trabalhar():
+            try:
+                sincronizar()
+            except Exception:
+                pass  # sem internet/nuvem fora do ar: segue só com o que já tinha localmente
+            self.after(0, lambda: self._apos_tentativa_sync(login, senha))
+
+        threading.Thread(target=trabalhar, daemon=True).start()
+
+    def _apos_tentativa_sync(self, login: str, senha: str) -> None:
+        self._tentando_nuvem(False)
+        try:
+            usuario = UsuarioController.autenticar(login, senha)
+        except ValidationError as e:
+            self._tratar_validation_error(login, e)
             return
         if usuario:
             self.ao_autenticar(usuario)
         else:
             messagebox.showerror("Erro", "Login ou senha inválidos.")
+
+    def _tratar_validation_error(self, login: str, e: ValidationError) -> None:
+        mensagem = str(e)
+        if "verificado" in mensagem:
+            pendente = UsuarioController.usuario_nao_verificado(login)
+            if pendente:
+                JanelaVerificacaoEmail(self, pendente, ao_verificar=lambda: None)
+                return
+        if "Mensalidade" in mensagem:
+            JanelaBloqueioPagamento(self, login, mensagem)
+            return
+        messagebox.showerror("Acesso bloqueado", mensagem)
 
     def _tentando_nuvem(self, ativo: bool) -> None:
         """Feedback visual simples durante a tentativa de sync no login."""
@@ -137,6 +167,9 @@ class LoginView(ctk.CTkFrame):
 
     def _abrir_recuperacao(self) -> None:
         JanelaRecuperarSenha(self)
+
+    def _abrir_ativacao(self) -> None:
+        JanelaAtivarInstalacao(self)
 
     def _recarregar(self) -> None:
         """Reconstrói a tela de login (ex.: some o botão de criar conta)."""
@@ -193,6 +226,104 @@ class JanelaBloqueioPagamento(ctk.CTkToplevel):
             messagebox.showwarning("Atenção", str(e))
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível concluir a solicitação: {e}")
+
+
+class JanelaAtivarInstalacao(ctk.CTkToplevel):
+    """
+    Janela para autenticar um PC novo (banco local vazio) contra a nuvem
+    usando o código de ativação curto (gerado por 004_trigger_codigo_ativacao.sql,
+    entregue pelo super admin — ver EmpresaController.cadastrar). Só
+    autentica o DISPOSITIVO (JWT/empresa_id); os usuários da empresa
+    continuam existindo só na nuvem até o pull abaixo trazê-los pro
+    SQLite local. Depois de puxar tudo, o usuário já cadastrado noutro
+    PC consegue logar aqui normalmente com a mesma senha de sempre.
+    """
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.master_login = master
+        self.title("Ativar Instalação")
+        self.geometry("360x260")
+        self.resizable(False, False)
+        self.grab_set()
+
+        ctk.CTkLabel(
+            self, text="Ativar esta instalação", font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(pady=(25, 5))
+        ctk.CTkLabel(
+            self,
+            text="Digite o código de ativação da sua empresa\n"
+                 "(o mesmo enviado por e-mail ao super admin).\n"
+                 "Isso conecta este computador à nuvem e traz\n"
+                 "os dados já cadastrados.",
+            text_color=("gray35", "gray70"), wraplength=300, justify="center"
+        ).pack(padx=20, pady=(0, 15))
+
+        self.entry_codigo = ctk.CTkEntry(self, placeholder_text="XXXX-XXXX", width=280)
+        self.entry_codigo.pack(pady=8)
+        self.entry_codigo.bind("<Return>", lambda e: self._ativar())
+
+        self.botao_ativar = ctk.CTkButton(self, text="Ativar e sincronizar", width=280, command=self._ativar)
+        self.botao_ativar.pack(pady=15)
+
+        self.label_status = ctk.CTkLabel(self, text="", text_color=("gray35", "gray70"))
+        self.label_status.pack()
+
+    def _ativar(self) -> None:
+        codigo = self.entry_codigo.get().strip()
+        if not codigo:
+            messagebox.showwarning("Atenção", "Informe o código de ativação.")
+            return
+
+        self.botao_ativar.configure(state="disabled")
+        self.label_status.configure(text="Ativando dispositivo...")
+
+        def trabalhar():
+            try:
+                nuvem_auth.ativar_com_codigo(codigo)
+            except nuvem_auth.ErroAutenticacaoNuvem as e:
+                self.after(0, self._falha_ativacao, str(e))
+                return
+            except Exception as e:
+                self.after(0, self._falha_ativacao, f"Erro inesperado ao ativar: {e}")
+                return
+
+            self.after(0, lambda: self.label_status.configure(
+                text="Dispositivo ativado. Baixando dados da nuvem..."
+            ))
+
+            try:
+                sincronizar()
+            except Exception as e:
+                self.after(0, self._falha_sincronizacao, str(e))
+                return
+
+            self.after(0, self._sucesso)
+
+        threading.Thread(target=trabalhar, daemon=True).start()
+
+    def _falha_ativacao(self, mensagem: str) -> None:
+        self.botao_ativar.configure(state="normal")
+        self.label_status.configure(text="")
+        messagebox.showerror("Falha na ativação", mensagem)
+
+    def _falha_sincronizacao(self, mensagem: str) -> None:
+        self.botao_ativar.configure(state="normal")
+        self.label_status.configure(text="")
+        messagebox.showerror(
+            "Ativação concluída, sincronização falhou",
+            "O dispositivo foi ativado, mas não foi possível baixar os "
+            f"dados agora: {mensagem}\n\nTente sincronizar de novo em alguns instantes "
+            "(o link 'Ativar esta instalação' pode ser usado de novo, "
+            "é seguro repetir)."
+        )
+
+    def _sucesso(self) -> None:
+        messagebox.showinfo(
+            "Instalação ativada",
+            "Dados sincronizados com sucesso! Faça login com seu usuário e senha de sempre."
+        )
+        self.destroy()
 
 
 class JanelaCadastroUsuario(ctk.CTkToplevel):

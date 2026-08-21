@@ -73,6 +73,22 @@ Deno.serve(async (req: Request) => {
   const senha = gerarSenha();
   let authUserId = linha.auth_user_id as string | null;
 
+  // Se a linha não tem auth_user_id salvo, tenta achar um usuário técnico
+  // já existente com esse e-mail (caso de linha órfã: usuário foi criado
+  // numa tentativa anterior mas o update em codigos_ativacao não foi
+  // persistido). Evita cair num createUser fadado a falhar com
+  // email_exists.
+  if (!authUserId) {
+    const { data: listaUsuarios, error: erroBusca } = await admin.auth.admin.listUsers();
+    if (!erroBusca) {
+      const existente = listaUsuarios.users.find((u) => u.email === email);
+      if (existente) {
+        authUserId = existente.id;
+        await admin.from("codigos_ativacao").update({ auth_user_id: authUserId }).eq("codigo", codigo);
+      }
+    }
+  }
+
   if (authUserId) {
     const { error: erroSenha } = await admin.auth.admin.updateUserById(authUserId, { password: senha });
     if (erroSenha) {
@@ -86,10 +102,28 @@ Deno.serve(async (req: Request) => {
       app_metadata: { empresa_id: linha.empresa_id },
     });
     if (erroCriar || !criado?.user) {
-      return jsonResponse({ erro: "falha_ao_criar_credencial" }, 500);
+      // Corrida: usuário foi criado entre a checagem acima e este ponto.
+      // Busca de novo e tenta atualizar a senha em vez de falhar.
+      if (erroCriar?.code === "email_exists") {
+        const { data: listaUsuarios2 } = await admin.auth.admin.listUsers();
+        const existente2 = listaUsuarios2?.users.find((u) => u.email === email);
+        if (existente2) {
+          authUserId = existente2.id;
+          await admin.from("codigos_ativacao").update({ auth_user_id: authUserId }).eq("codigo", codigo);
+          const { error: erroSenha2 } = await admin.auth.admin.updateUserById(authUserId, { password: senha });
+          if (erroSenha2) {
+            return jsonResponse({ erro: "falha_ao_renovar_credencial" }, 500);
+          }
+        } else {
+          return jsonResponse({ erro: "falha_ao_criar_credencial" }, 500);
+        }
+      } else {
+        return jsonResponse({ erro: "falha_ao_criar_credencial" }, 500);
+      }
+    } else {
+      authUserId = criado.user.id;
+      await admin.from("codigos_ativacao").update({ auth_user_id: authUserId }).eq("codigo", codigo);
     }
-    authUserId = criado.user.id;
-    await admin.from("codigos_ativacao").update({ auth_user_id: authUserId }).eq("codigo", codigo);
   }
 
   const respostaLogin = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
