@@ -127,23 +127,33 @@ class PainelSuperAdmin(ctk.CTkFrame):
         self._construir_aba_atualizacoes(self.tabview.tab("Atualizações"))
 
     def _sincronizar(self) -> None:
-        try:
-            resultado = sincronizar()
-            if not resultado["sincronizado"]:
-                messagebox.showwarning("Sincronização", "Nuvem indisponível no momento.")
-            else:
-                self._carregar_empresas()
-                self._carregar_usuarios()
-                self._carregar_avisos()
-                self._carregar_pagamentos()
-                messagebox.showinfo(
-                    "Sincronização",
-                    f"{resultado['aplicados']} registro(s) aplicado(s). "
-                    f"{len(resultado['conflitos'])} conflito(s) pendente(s)."
-                )
-        except Exception as e:
-            registrar_erro(e, "sincronizar_painel_admin")
-            messagebox.showerror("Erro", f"Falha ao sincronizar: {e}")
+        def trabalhar():
+            try:
+                resultado = sincronizar()
+            except Exception as e:
+                registrar_erro(e, "sincronizar_painel_admin")
+                self.after(0, lambda: messagebox.showerror("Erro", f"Falha ao sincronizar: {e}"))
+                return
+            self.after(0, lambda: self._apos_sincronizar(resultado))
+
+        threading.Thread(target=trabalhar, daemon=True).start()
+
+    def _apos_sincronizar(self, resultado: dict) -> None:
+        if resultado.get("ja_em_andamento"):
+            messagebox.showinfo("Sincronização", "Já existe uma sincronização em andamento; aguarde o ciclo atual terminar.")
+            return
+        if not resultado["sincronizado"]:
+            messagebox.showwarning("Sincronização", "Nuvem indisponível no momento.")
+            return
+        self._carregar_empresas()
+        self._carregar_usuarios()
+        self._carregar_avisos()
+        self._carregar_pagamentos()
+        messagebox.showinfo(
+            "Sincronização",
+            f"{resultado['aplicados']} registro(s) aplicado(s). "
+            f"{len(resultado['conflitos'])} conflito(s) pendente(s)."
+        )
 
     # ------------------------------------------------------------------
     # Aba Empresas
@@ -880,15 +890,18 @@ class AdminApp(ctk.CTk):
         self._agendar_sincronizacao()
 
     def _agendar_sincronizacao(self) -> None:
-        def executar_sync():
+        def trabalhar():
             try:
                 sincronizar()
             except Exception as e:
                 registrar_erro(e, "sincronizacao_automatica_admin_panel")
             finally:
-                self.after(30 * 1000, executar_sync)
+                self.after(60 * 1000, executar_sync)
 
-        self.after(30 * 1000, executar_sync)
+        def executar_sync():
+            threading.Thread(target=trabalhar, daemon=True).start()
+
+        self.after(60 * 1000, executar_sync)
 
     # --- Atualização automática do próprio Painel Super Admin ---------
     # Usa um manifest.json/versão SEPARADO do app da loja (variável de

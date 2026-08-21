@@ -45,6 +45,11 @@ _OPERADORES_POSTGREST = {
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+# Só existe no .env do painel super admin (admin_panel/app.py), que roda
+# em máquina controlada — NUNCA no .exe distribuído ao cliente (ver
+# supabase/002_jwt_empresa_id.md). Quando presente, bypassa RLS por
+# completo e dispensa login/JWT: super admin enxerga todas as empresas.
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 _REST_URL = f"{SUPABASE_URL}/rest/v1" if SUPABASE_URL else ""
 
 _jwt_atual: str | None = None
@@ -57,11 +62,24 @@ def definir_jwt_atual(jwt: str | None) -> None:
     _jwt_atual = jwt
 
 
+def modo_service_role() -> bool:
+    return bool(SUPABASE_SERVICE_ROLE_KEY)
+
+
 def configurado() -> bool:
+    if SUPABASE_SERVICE_ROLE_KEY:
+        return bool(SUPABASE_URL)
     return bool(SUPABASE_URL and SUPABASE_ANON_KEY and _jwt_atual)
 
 
 def _headers() -> dict:
+    if SUPABASE_SERVICE_ROLE_KEY:
+        return {
+            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        }
     return {
         "apikey": SUPABASE_ANON_KEY,
         "Authorization": f"Bearer {_jwt_atual}",

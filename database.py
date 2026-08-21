@@ -139,6 +139,22 @@ def testar_conexao_nuvem() -> tuple[bool, str]:
     inalcançável, autenticação, JWT expirado, etc.).
     """
     if USAR_REST_NUVEM:
+        if supabase_rest.modo_service_role():
+            # Painel super admin (admin_panel/app.py): service_role key
+            # bypassa RLS por completo, sem login/JWT de instalação.
+            try:
+                import httpx
+                r = httpx.get(
+                    f"{supabase_rest._REST_URL}/usuarios",
+                    params={"select": "id", "limit": "1"},
+                    headers=supabase_rest._headers(),
+                    timeout=5,
+                )
+                if r.status_code == 200:
+                    return True, "Conectado com sucesso (service_role)."
+                return False, f"Resposta inesperada da nuvem (service_role): {r.status_code} {r.text}"
+            except Exception as e:
+                return False, str(e)
         if not supabase_rest.SUPABASE_ANON_KEY:
             return False, "SUPABASE_ANON_KEY não configurada no arquivo .env."
         if not supabase_rest._jwt_atual:
