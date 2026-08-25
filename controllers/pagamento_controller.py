@@ -368,6 +368,12 @@ class PagamentoController:
             pagamentos = session.query(Pagamento).filter_by(deletado=False).order_by(
                 Pagamento.vencimento.desc()
             ).all()
+            for p in pagamentos:
+                conta = session.get(Usuario, p.conta_principal_id)
+                empresa = session.get(Empresa, conta.empresa_id) if conta and conta.empresa_id is not None else None
+                p.empresa_nome = empresa.nome if empresa else "—"
+                p.empresa_sigla = empresa.sigla if empresa else "—"
+                p.empresa_id_display = empresa.id if empresa else "—"
             session.expunge_all()
             return pagamentos
         finally:

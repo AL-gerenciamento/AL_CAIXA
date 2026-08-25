@@ -586,7 +586,7 @@ class PainelSuperAdmin(ctk.CTkFrame):
             info = ctk.CTkFrame(linha, fg_color="transparent")
             info.pack(side="left", fill="x", expand=True, padx=15, pady=10)
             ctk.CTkLabel(
-                info, text=f"Conta #{pagamento.conta_principal_id}  •  Referência {pagamento.referencia}",
+                info, text=f"{pagamento.empresa_nome} ({pagamento.empresa_sigla}) #{pagamento.empresa_id_display}  •  Conta #{pagamento.conta_principal_id}  •  Referência {pagamento.referencia}",
                 font=ctk.CTkFont(size=14, weight="bold")
             ).pack(anchor="w")
             ctk.CTkLabel(
