@@ -1,6 +1,6 @@
 ; packaging/superadmin_installer.iss
 ; Compilar com Inno Setup (ISCC.exe) DEPOIS de rodar o PyInstaller,
-; a partir da pasta dist/ORVYN-Master gerada por ele.
+; a partir da pasta dist/AL Gerenciamento Master gerada por ele.
 ; Gera: ALGL-mercado-Setup-<versao>.exe (painel do Super Admin)
 
 #define MyAppName "ALGL mercado"

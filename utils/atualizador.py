@@ -1,7 +1,7 @@
 """
 utils/atualizador.py
 Sistema de atualização automática via Google Drive — compartilhado pelo
-app da loja (ORVYN.exe) e pelo Painel Super Admin (ORVYN-Master.exe).
+app da loja (AL-Caixa.exe) e pelo Painel Super Admin (AL-Gerenciamento-Master.exe).
 Cada um tem seu PRÓPRIO manifest.json/versão no Drive (pastas de
 instalação diferentes, version.txt independente em cada uma).
 
@@ -54,7 +54,7 @@ PROTEGIDOS = {
 
 MANIFEST_URL_PADRAO = "https://drive.google.com/uc?export=download&id=SEU_ID_DO_MANIFEST_AQUI"
 
-MANIFEST_URL = os.getenv("ORVYN_UPDATE_MANIFEST_URL", MANIFEST_URL_PADRAO)
+MANIFEST_URL = os.getenv("AL_CAIXA_UPDATE_MANIFEST_URL", MANIFEST_URL_PADRAO)
 
 
 def versao_atual() -> str:
@@ -77,15 +77,15 @@ def _google_drive_url_direta(url: str) -> str:
     return url
 
 
-def verificar_atualizacao(manifest_url_env: str = "ORVYN_UPDATE_MANIFEST_URL") -> dict | None:
+def verificar_atualizacao(manifest_url_env: str = "AL_CAIXA_UPDATE_MANIFEST_URL") -> dict | None:
     """
     Consulta o manifest.json no Drive. Retorna None se já está na versão
     mais recente, se o manifesto está inacessível, ou em caso de erro
     (nunca lança exceção — checagem de atualização não pode derrubar o app).
 
     `manifest_url_env`: nome da variável de ambiente (.env) que traz o
-    link do manifest.json. Use "ORVYN_UPDATE_MANIFEST_URL" para o app da
-    loja e "ORVYN_MASTER_UPDATE_MANIFEST_URL" para o Painel Super Admin —
+    link do manifest.json. Use "AL_CAIXA_UPDATE_MANIFEST_URL" para o app da
+    loja e "AL_GERENCIAMENTO_MASTER_UPDATE_MANIFEST_URL" para o Painel Super Admin —
     cada app tem sua própria versão/publicação no Drive.
     """
     try:
@@ -142,8 +142,8 @@ def _gerar_script_aplicador(zip_path: str, pasta_destino: str, pid_atual: int, n
     cima da instalação (pulando PROTEGIDOS) e reabre o app.
 
     `nome_executavel_win`: nome do .exe a reabrir no Windows (ex.:
-    "ORVYN.exe" para o app da loja, "ORVYN-Master.exe" para o Painel
-    Super Admin). No Linux/macOS o binário é sempre "ORVYN" (não há
+    "AL-Caixa.exe" para o app da loja, "AL-Gerenciamento-Master.exe" para o Painel
+    Super Admin). No Linux/macOS o binário é sempre "AL-Caixa" (não há
     versão Master separada nesses SOs por enquanto).
     """
     tag = os.path.splitext(nome_executavel_win)[0].lower().replace("-", "_")
@@ -174,7 +174,7 @@ del "%~f0"
         return script_path
 
     script_path = os.path.join(tempfile.gettempdir(), f"orvyn_apply_update_{tag}.sh")
-    executavel = os.path.join(pasta_destino, "ORVYN")
+    executavel = os.path.join(pasta_destino, "AL-Caixa")
     excecoes = " ".join(f"! -name '{p}' ! -path '*/{p}/*'" for p in PROTEGIDOS)
     conteudo = f"""#!/bin/bash
 while kill -0 {pid_atual} 2>/dev/null; do sleep 1; done
@@ -192,13 +192,13 @@ rm -- "$0"
     return script_path
 
 
-def aplicar_atualizacao_e_reiniciar(manifesto: dict, zip_path: str, nome_executavel_win: str = "ORVYN.exe") -> None:
+def aplicar_atualizacao_e_reiniciar(manifesto: dict, zip_path: str, nome_executavel_win: str = "AL-Caixa.exe") -> None:
     """
     Prepara o script aplicador, dispara em processo separado e encerra o
     app atual. A troca de arquivos só acontece DEPOIS que este processo
     já não estiver mais rodando (evita arquivo em uso / travamento).
 
-    `nome_executavel_win`: passe "ORVYN-Master.exe" ao chamar a partir do
+    `nome_executavel_win`: passe "AL-Gerenciamento-Master.exe" ao chamar a partir do
     Painel Super Admin.
     """
     pid = os.getpid()

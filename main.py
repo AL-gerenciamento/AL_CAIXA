@@ -1,6 +1,6 @@
 """
 main.py
-Ponto de entrada do sistema de ORVYN.
+Ponto de entrada do sistema AL Caixa.
 Inicializa o banco de dados, popula categorias padrão e inicia a interface.
 """
 import os

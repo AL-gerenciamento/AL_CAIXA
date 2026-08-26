@@ -295,7 +295,7 @@ class App(ctk.CTk):
         notas = manifesto.get("notas", "")
         if not messagebox.askyesno(
             "Atualização disponível",
-            f"Nova versão do ORVYN disponível: {manifesto['versao']} "
+            f"Nova versão do AL Caixa disponível: {manifesto['versao']} "
             f"(atual: {atualizador.versao_atual()}).\n\n{notas}\n\n"
             "Deseja atualizar agora? O app fecha e reabre sozinho em alguns segundos."
         ):

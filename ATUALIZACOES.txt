@@ -1,11 +1,11 @@
-ORVYN — SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA VIA GOOGLE DRIVE
+AL Caixa — SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA VIA GOOGLE DRIVE
 ============================================================
 Última revisão: 13/07/2026
 
 
 1. VISÃO GERAL
 ---------------
-O ORVYN verifica sozinho, a cada abertura (e sob demanda, pelo botão
+O AL Caixa verifica sozinho, a cada abertura (e sob demanda, pelo botão
 "Verificar Atualização Agora" em Configurações, ou pelo Super Admin),
 se existe uma versão mais nova publicada no Google Drive. Se existir,
 pergunta ao usuário se quer atualizar agora; se confirmado, baixa,
@@ -46,10 +46,10 @@ o usuário confirma na caixa de diálogo.
 a) Gere o instalável/pacote da nova versão com os scripts em packaging/
    (build_windows.bat / build_macos.sh / build_linux.sh), OU deixe o
    GitHub Actions gerar (.github/workflows/build.yml) a cada tag "vX.Y.Z".
-   Windows/Linux agora geram um ÚNICO arquivo (ORVYN.exe / ORVYN), sem
-   pasta cheia de dlls soltas; macOS gera o ORVYN.app (ícone único).
+   Windows/Linux agora geram um ÚNICO arquivo (AL-Caixa.exe / AL Caixa), sem
+   pasta cheia de dlls soltas; macOS gera o AL Caixa.app (ícone único).
 
-b) Compacte a pasta de saída (dist/ORVYN) em um .zip, ex.: orvyn_1.1.0.zip
+b) Compacte a pasta de saída (dist/AL-Caixa) em um .zip, ex.: orvyn_1.1.0.zip
    O conteúdo do zip é a raiz da instalação (mesma estrutura de pastas).
 
 c) Suba o orvyn_1.1.0.zip no Google Drive:
@@ -70,12 +70,12 @@ e) Suba esse manifest.json no Google Drive também, com compartilhamento
    público, e copie o link dele.
 
 f) Configure esse link uma única vez por instalação, no arquivo .env:
-     ORVYN_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST/view
+     AL_CAIXA_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST/view
 
    (Se preferir, distribua o .env já com essa variável preenchida em
    todas as instalações novas, para não precisar configurar em cada uma.)
 
-g) Pronto. Na próxima abertura do ORVYN em qualquer máquina (ou ao
+g) Pronto. Na próxima abertura do AL Caixa em qualquer máquina (ou ao
    clicar em "Verificar Atualização Agora"), o app vai enxergar a nova
    versão e perguntar se quer atualizar.
 
@@ -90,13 +90,13 @@ g) Pronto. Na próxima abertura do ORVYN em qualquer máquina (ou ao
 4. É gerado um pequeno script "aplicador":
      - Windows: um .bat que usa `robocopy`
      - macOS/Linux: um .sh que usa `rsync`
-5. Esse script é disparado como processo INDEPENDENTE do ORVYN, e o
-   ORVYN principal se fecha logo em seguida (isso evita o clássico
+5. Esse script é disparado como processo INDEPENDENTE do AL Caixa, e o
+   AL Caixa principal se fecha logo em seguida (isso evita o clássico
    problema de um programa tentar sobrescrever seu próprio .exe
    enquanto está rodando).
-6. O script aplicador espera o processo do ORVYN (pelo PID) realmente
+6. O script aplicador espera o processo do AL Caixa (pelo PID) realmente
    encerrar, copia os arquivos novos por cima dos antigos, e abre o
-   ORVYN de novo — tudo isso em poucos segundos, sem intervenção do
+   AL Caixa de novo — tudo isso em poucos segundos, sem intervenção do
    usuário.
 7. NUNCA são sobrescritos ou apagados: database.db, .env, version.txt,
    e as pastas reports/, exports/, comprovantes/, assets/images/
@@ -130,21 +130,21 @@ g) Pronto. Na próxima abertura do ORVYN em qualquer máquina (ou ao
   rodar como administrador na primeira instalação).
 
 
-7. ATUALIZANDO O PAINEL SUPER ADMIN (ORVYN-Master.exe)
+7. ATUALIZANDO O PAINEL SUPER ADMIN (AL-Gerenciamento-Master.exe)
 -----------------------------------------------------------
 O Master usa o MESMO mecanismo (utils/atualizador.py), mas com
 manifest.json/versão SEPARADOS do app da loja — são pastas de
 instalação diferentes, cada uma com seu próprio version.txt.
 
-a) Publique o zip do Master (dist\ORVYN-Master.exe) e o manifest.json
+a) Publique o zip do Master (dist\AL-Gerenciamento-Master.exe) e o manifest.json
    dele no Drive, exatamente como no passo 3 (a-e), só que apontando
-   pro executável ORVYN-Master.exe.
+   pro executável AL-Gerenciamento-Master.exe.
    OBS: o manifest.json do Master é gerado no MESMO painel Atualizações
    (aba do próprio Master) — só cuide de gerar um manifest.json
    diferente do da loja (arquivo separado no Drive, link separado).
 
 b) No .env da(s) máquina(s) que rodam o Master, preencha:
-     ORVYN_MASTER_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST_DO_MASTER/view
+     AL_GERENCIAMENTO_MASTER_UPDATE_MANIFEST_URL=https://drive.google.com/file/d/ID_DO_MANIFEST_DO_MASTER/view
 
 c) O Master checa sozinho 4s após o login (igual ao app da loja) e
    também tem botão manual "Verificar atualização do Master" no topo

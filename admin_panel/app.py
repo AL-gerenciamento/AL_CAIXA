@@ -38,7 +38,6 @@ from controllers.mensagem_controller import (
 from models import Permissao, StatusPagamento
 from utils.validators import ValidationError, validar_data
 from utils.logger import registrar_erro
-from utils import atualizador
 from utils.pix_payload import TIPOS_CHAVE
 from database import init_db, registrar_callback_pos_commit_local
 
@@ -105,10 +104,6 @@ class PainelSuperAdmin(ctk.CTkFrame):
             font=ctk.CTkFont(size=24, weight="bold")
         ).pack(side="left")
         ctk.CTkButton(topo, text="Sincronizar agora", width=150, command=self._sincronizar).pack(side="right")
-        ctk.CTkButton(
-            topo, text="Verificar atualização do Master", width=210,
-            command=lambda: self.master._verificar_atualizacao_silenciosa()
-        ).pack(side="right", padx=(0, 10))
 
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=30, pady=(10, 25))
@@ -681,13 +676,13 @@ class PainelSuperAdmin(ctk.CTkFrame):
         wrapper.pack(fill="both", expand=True, pady=(10, 0))
 
         ctk.CTkLabel(
-            wrapper, text="Publicar nova versão do ORVYN", font=ctk.CTkFont(size=16, weight="bold")
+            wrapper, text="Publicar nova versão do AL Caixa", font=ctk.CTkFont(size=16, weight="bold")
         ).pack(anchor="w", pady=(0, 4))
         ctk.CTkLabel(
             wrapper, text=(
                 "1) Gere o manifest.json aqui.  2) Suba o .zip da nova versão e este "
                 "manifest.json no Google Drive, ambos com link 'Qualquer pessoa com o link'.  "
-                "3) Cole o link do manifest.json no .env de cada instalação (ORVYN_UPDATE_MANIFEST_URL) "
+                "3) Cole o link do manifest.json no .env de cada instalação (AL_CAIXA_UPDATE_MANIFEST_URL) "
                 "— só precisa fazer isso uma vez, por instalação.\n"
                 "Veja ATUALIZACOES.txt na raiz do projeto para o passo a passo completo."
             ),
@@ -879,7 +874,7 @@ class AdminApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self.title("ORVYN Master — Painel do Super Admin")
+        self.title("AL Gerenciamento Master — Painel do Super Admin")
         self.geometry("1100x700")
         self.minsize(950, 600)
         ctk.set_appearance_mode("dark")
@@ -903,39 +898,15 @@ class AdminApp(ctk.CTk):
 
         self.after(60 * 1000, executar_sync)
 
-    # --- Atualização automática do próprio Painel Super Admin ---------
-    # Usa um manifest.json/versão SEPARADO do app da loja (variável de
-    # ambiente ORVYN_MASTER_UPDATE_MANIFEST_URL, ver ATUALIZACOES.txt).
-    def _verificar_atualizacao_silenciosa(self) -> None:
-        def checar():
-            manifesto = atualizador.verificar_atualizacao("ORVYN_MASTER_UPDATE_MANIFEST_URL")
-            if manifesto:
-                self.after(0, lambda: self._perguntar_atualizacao(manifesto))
-
-        threading.Thread(target=checar, daemon=True).start()
-
-    def _perguntar_atualizacao(self, manifesto: dict) -> None:
-        notas = manifesto.get("notas", "")
-        if not messagebox.askyesno(
-            "Atualização disponível",
-            f"Nova versão do ORVYN Master disponível: {manifesto['versao']} "
-            f"(atual: {atualizador.versao_atual()}).\n\n{notas}\n\n"
-            "Deseja atualizar agora? O painel fecha e reabre sozinho em alguns segundos."
-        ):
-            return
-        try:
-            zip_path = atualizador.baixar_atualizacao(manifesto)
-            atualizador.aplicar_atualizacao_e_reiniciar(manifesto, zip_path, nome_executavel_win="ORVYN-Master.exe")
-        except Exception as e:
-            registrar_erro(e, "atualizacao_automatica_admin_panel")
-            messagebox.showerror("Erro na atualização", f"Não foi possível atualizar: {e}")
+    # --- Atualização automática do próprio Painel Super Admin removida:
+    # o Master não se autoatualiza mais; publicar nova versão exige
+    # reinstalação manual. ---
 
     def _entrar(self, usuario) -> None:
         self.usuario_logado = usuario
         for widget in self.winfo_children():
             widget.destroy()
         PainelSuperAdmin(self, usuario)
-        self.after(4000, self._verificar_atualizacao_silenciosa)
 
 
 def _garantir_super_admin() -> None:

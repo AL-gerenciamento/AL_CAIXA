@@ -1,6 +1,6 @@
 ; packaging/al_caixa_installer.iss
 ; Compilar com Inno Setup (ISCC.exe) DEPOIS de rodar o PyInstaller,
-; a partir da pasta dist/ORVYN gerada por ele.
+; a partir da pasta dist/AL Caixa gerada por ele.
 ; Gera: AL-Caixa-Setup-<versao>.exe (sistema de mercado / PDV)
 
 #define MyAppName "AL Caixa"

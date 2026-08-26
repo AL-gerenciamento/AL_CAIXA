@@ -5,9 +5,9 @@ set -e
 pip3 install -r requirements.txt --quiet
 pip3 install pyinstaller --quiet
 
-rm -rf dist/ORVYN.app dist/ORVYN-Master.app
-pyinstaller packaging/orvyn.spec --noconfirm
-pyinstaller packaging/orvyn_master.spec --noconfirm
+rm -rf dist/AL Caixa.app dist/ALGL mercado.app
+pyinstaller packaging/al_caixa.spec --noconfirm
+pyinstaller packaging/al_gerenciamento_master.spec --noconfirm
 
 mkdir -p dist_installers
 
@@ -17,11 +17,11 @@ if ! command -v create-dmg >/dev/null 2>&1; then
 fi
 
 create-dmg \
-  --volname "ORVYN" \
+  --volname "AL Caixa" \
   --window-size 500 300 \
-  --icon "ORVYN.app" 120 120 \
+  --icon "AL Caixa.app" 120 120 \
   --app-drop-link 360 120 \
-  "dist_installers/ORVYN-Installer.dmg" \
-  "dist/ORVYN.app"
+  "dist_installers/AL-Caixa-Installer.dmg" \
+  "dist/AL Caixa.app"
 
-echo "Instalador gerado em dist_installers/ORVYN-Installer.dmg"
+echo "Instalador gerado em dist_installers/AL-Caixa-Installer.dmg"

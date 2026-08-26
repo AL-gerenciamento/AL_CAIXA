@@ -8,8 +8,8 @@ python -m pip install -r requirements.txt --quiet
 python -m pip install pyinstaller --quiet
 
 del /q "dist\AL Caixa.exe" "dist\ALGL mercado.exe" 2>nul
-python -m PyInstaller packaging\orvyn.spec --noconfirm
-python -m PyInstaller packaging\orvyn_master.spec --noconfirm
+python -m PyInstaller packaging\al_caixa.spec --noconfirm
+python -m PyInstaller packaging\al_gerenciamento_master.spec --noconfirm
 
 where ISCC >nul 2>nul
 if %errorlevel%==0 (

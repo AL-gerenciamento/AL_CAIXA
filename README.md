@@ -1,4 +1,4 @@
-# 🔷 ORVYN
+# 🔷 AL Caixa
 
 Aplicativo desktop completo de controle financeiro pessoal, feito em Python com CustomTkinter, SQLAlchemy e SQLite.
 
