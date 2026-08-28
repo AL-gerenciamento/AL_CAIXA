@@ -1,141 +1,94 @@
-# 🔷 AL Caixa
+# AL Caixa — Gestão Inteligente
 
-Aplicativo desktop completo de controle financeiro pessoal, feito em Python com CustomTkinter, SQLAlchemy e SQLite.
+Sistema de caixa (PDV) e gestão financeira para mercados e pequenos negócios, com
+aplicativo desktop (Windows/macOS/Linux), funcionamento **offline-first** e
+sincronização automática em nuvem.
+
+## Visão geral
+
+- **PDV completo**: leitura por código de barras/código interno/nome, carrinho,
+  finalização com baixa automática de estoque e caixa, recibo em PDF/WhatsApp.
+- **Estoque em 3 camadas**: Venda, Produção Interna e Prateleira, com transferências
+  entre elas e bloqueio automático de produção quando falta ingrediente.
+- **Produtos compostos**: ficha técnica com ingredientes, cálculo automático de
+  custo e formação de preço por margem.
+- **Financeiro**: receitas, despesas (avulsas e fixas recorrentes), categorias,
+  metas financeiras com progresso visual.
+- **Relatórios**: resumo com gráficos e exportação em PDF, Excel e CSV.
+- **Multiusuário**: permissões granulares por módulo, hierarquia de usuários,
+  painel de administração.
+- **Offline-first**: banco local SQLite com fila de sincronização; funciona sem
+  internet e sincroniza automaticamente ao reconectar.
+- **Atualização automática**: verifica e aplica novas versões via Google Drive,
+  sem reinstalação manual (ver `ATUALIZACOES.txt`).
+- **Central de Ajuda** integrada, com manual pesquisável por módulo.
+
+## Arquitetura
+
+```
+app.py                  # janela raiz: splash, login, roteamento entre telas
+main.py                 # ponto de entrada
+database.py             # engine SQLAlchemy, sessão, modo REST/nuvem
+models.py               # modelos de dados (Empresa, Usuario, Produto, Venda, ...)
+controllers/             # regras de negócio (uma por domínio)
+views/                   # telas CustomTkinter (uma por módulo)
+utils/                   # autenticação, criptografia local, PIX, impressão, etc.
+supabase/                # SQL de RLS/triggers e Edge Functions (Deno/TS)
+admin_panel/             # painel Super Admin (app separado)
+packaging/               # specs PyInstaller e scripts de build por SO
+```
+
+**Padrão**: `views/` (UI) → `controllers/` (regras de negócio) → `models.py`
+(SQLAlchemy) → `database.py` (SQLite local, com sync para Supabase/Postgres em
+nuvem via `controllers/sync_controller.py`).
+
+### Fluxo de sessão
+
+`App` (`app.py`) controla: `_mostrar_login()` → `_entrar_no_sistema()` →
+`_construir_area_principal()`. O botão **Sair** encerra apenas a sessão do
+usuário e volta à tela de login (`_sair_da_conta`); fechar a janela ou `Ctrl+Q`
+encerra o aplicativo (`_fechar`).
 
 ## Tecnologias
 
-- Python 3.13+
-- CustomTkinter (interface gráfica)
-- SQLAlchemy (ORM)
-- SQLite (banco de dados)
-- Matplotlib (gráficos)
-- Pandas (exportação de dados)
-- ReportLab (relatórios em PDF)
-- bcrypt (senhas criptografadas)
+| Camada | Tecnologia |
+|---|---|
+| UI desktop | CustomTkinter |
+| ORM / banco local | SQLAlchemy + SQLite |
+| Nuvem | Supabase (Postgres + Edge Functions) |
+| Gráficos | Matplotlib |
+| Relatórios | ReportLab (PDF), openpyxl/pandas (Excel/CSV) |
+| Imagens/etiquetas | Pillow, PyMuPDF |
+| Impressão | pywin32 (GDI direto no Windows) |
+| Segurança | bcrypt, cryptography |
+| Empacotamento | PyInstaller (`packaging/*.spec`), Inno Setup (Windows) |
 
-## Instalação
+## Executando em desenvolvimento
 
 ```bash
-# 1. Clone ou copie a pasta do projeto
-cd controle_financeiro
-
-# 2. (Recomendado) Crie um ambiente virtual
-python3 -m venv venv
-source venv/bin/activate      # Linux/Mac
-venv\Scripts\activate         # Windows
-
-# 3. Instale as dependências
 pip install -r requirements.txt
-```
-
-No Linux, se faltar o Tkinter do sistema:
-```bash
-sudo apt-get install python3-tk
-```
-
-## Execução
-
-```bash
+cp .env.example .env   # preencha as credenciais do Supabase, se for usar nuvem
 python main.py
 ```
 
-Na primeira execução:
-1. O banco `database.db` e as tabelas são criados automaticamente.
-2. As categorias padrão (Alimentação, Transporte, Salário etc.) são inseridas.
-3. A tela de login aparece; como não há usuários, clique em **"Criar conta de administrador"** para cadastrar o primeiro usuário.
+## Build de instaladores
 
-## Estrutura do projeto
-
-```
-controle_financeiro/
-│
-├── app.py               # Janela principal, splash screen, roteamento
-├── main.py               # Ponto de entrada
-├── database.py            # Engine/sessão SQLAlchemy
-├── models.py              # Modelos (tabelas) do banco
-├── controllers/            # Regras de negócio (um por entidade)
-├── views/                # Telas CustomTkinter
-├── assets/                # Ícones e imagens
-├── reports/               # Log de erros e backups automáticos
-├── utils/                # Validação, segurança, log
-├── exports/               # Relatórios exportados (PDF/Excel/CSV)
-├── database.db             # Banco SQLite (gerado automaticamente)
-├── requirements.txt
-└── README.md
+```bash
+packaging/build_windows.bat   # Windows (.exe único via PyInstaller + Inno Setup)
+packaging/build_macos.sh      # macOS (.app)
+packaging/build_linux.sh      # Linux
 ```
 
-## Funcionalidades
+Detalhes do processo de publicação de nova versão e do sistema de atualização
+automática: ver `ATUALIZACOES.txt`.
 
-**Dashboard** — saldo atual, receitas, despesas, economia do mês, últimas movimentações, gráfico receitas x despesas, gráfico por categoria.
+## Estrutura de permissões
 
-**Receitas / Despesas** — adicionar, editar, excluir, pesquisar por texto, filtrar por data e categoria. Despesas têm status "Paga" / "Pendente" (clique no botão de status para alternar).
+Usuários têm um `Permissao` (`ADMIN`/padrão) e permissões granulares por
+módulo (`Usuario.tem_permissao`). Módulos sem permissão não aparecem na grade
+do Dashboard e têm o acesso bloqueado na navegação (`app.py::_navegar`).
 
-**Categorias** — CRUD com cor personalizada, separadas em abas Receita/Despesa. Categorias com lançamentos vinculados não podem ser excluídas.
+## Suporte
 
-**Metas Financeiras** — criação de metas com valor alvo e prazo, barra de progresso visual, atualização manual do valor acumulado.
-
-**Relatórios** — exportação em PDF, Excel (com aba detalhada + resumo agrupado) e CSV. Períodos pré-definidos e agrupamento por dia/semana/mês/ano/categoria.
-
-**Configurações** — tema (claro/escuro/sistema), moeda, pasta de exportação, backup manual e restauração de backup. Administradores também gerenciam permissões e podem desativar usuários.
-
-## Segurança
-
-- Senhas armazenadas com hash bcrypt (nunca em texto puro).
-- Todas as consultas usam SQLAlchemy ORM com parâmetros vinculados — sem concatenação de SQL, eliminando SQL Injection.
-- Validação de todos os campos de formulário (`utils/validators.py`).
-- Backup automático a cada 30 minutos (arquivo salvo em `reports/backups/`).
-- Log de erros em `reports/erros.log` e na tabela `log_erros`.
-- Histórico de alterações (auditoria) na tabela `log_alteracoes`.
-- Dois níveis de permissão: **Administrador** e **Usuário**.
-
-## Atalhos de teclado
-
-| Atalho | Ação |
-|---|---|
-| Ctrl+D | Ir para Dashboard |
-| Ctrl+R | Ir para Receitas |
-| Ctrl+E | Ir para Despesas |
-| Ctrl+M | Ir para Metas |
-| Ctrl+Q | Fechar aplicativo |
-
-## Backup e restauração
-
-- **Criar backup**: Configurações → "Criar Backup Agora" (copia `database.db` para `reports/backups/`).
-- **Restaurar backup**: Configurações → "Restaurar Backup..." → selecione um arquivo `.db`. Reinicie o aplicativo após restaurar.
-
-## Solução de problemas
-
-- **Erro de módulo Tkinter ausente**: instale `python3-tk` (Linux) — Windows/Mac já incluem por padrão.
-- **Erro ao gerar PDF/Excel**: confirme que `reportlab`, `pandas` e `openpyxl` foram instalados corretamente (`pip install -r requirements.txt`).
-- **Esqueci a senha de admin**: não há recuperação automática por segurança; peça a outro administrador para alterar permissões, ou restaure um backup anterior do `database.db`.
-
-## Instaladores (Windows / macOS / Linux)
-
-Veja `packaging/` para os scripts de build (PyInstaller + Inno Setup/DMG/AppImage)
-e `.github/workflows/build.yml` para gerar os três instaladores automaticamente
-via GitHub Actions a cada tag `vX.Y.Z`.
-
-### Credenciais (SMTP, DATABASE_URL, etc.)
-
-O `.env` real (com senhas) **nunca** é empacotado no executável — os `.spec`
-em `packaging/` embutem só um `.env` em branco, gerado a partir de
-`.env.example`. Depois de instalar em uma máquina nova:
-
-1. Rode o app uma vez (cria a pasta persistente, ex.: `Documents/AL Caixa`).
-2. Feche o app e edite `Documents/AL Caixa/.env` com as credenciais reais
-   (`DATABASE_URL`, `SMTP_*`, `SUPABASE_SYNC_FUNCTION_URL`).
-3. Abra o app de novo.
-
-Atualizações automáticas nunca sobrescrevem esse `.env` (ver `utils/atualizador.py`).
-O arquivo `.env` da raiz do projeto (usado só em modo dev, sem empacotar) não
-deve ser commitado — está no `.gitignore`; use `.env.example` como modelo.
-
-## Atualização automática
-
-O app verifica sozinho por novas versões publicadas no Google Drive.
-Especificação técnica completa e passo a passo de publicação: `ATUALIZACOES.txt`.
-
-## Controle de acesso à nuvem por empresa
-
-Painel Super Admin -> aba Empresas -> botão "Bloquear nuvem/Liberar nuvem"
-(independente do bloqueio de login por mensalidade). Detalhes em `ATUALIZACOES.txt`.
+E-mail: `algl.gerenciamento@gmail.com` — Segunda a sexta-feira, 14h–18h
+(horário de Brasília). Manual completo dentro do app em **Central de Ajuda**.

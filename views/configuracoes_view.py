@@ -254,7 +254,7 @@ class ConfiguracoesView(ctk.CTkFrame):
 
         self._secao(
             conteudo, "Gestão de usuários, avisos e pagamento",
-            "Disponível na tela 'Administração' no menu lateral.",
+            "Disponível na tela 'Administração', acessível pelo Dashboard.",
         )
 
         if self.usuario.empresa_id:

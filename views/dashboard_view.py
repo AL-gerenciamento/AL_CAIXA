@@ -121,6 +121,13 @@ class DashboardView(ctk.CTkFrame):
 
         itens.append(("__sair__", "🚪", "#95A5A6", "Sair do sistema", None))
 
+        colunas = 5
+        linhas = (len(itens) + colunas - 1) // colunas
+        for c in range(colunas):
+            area.grid_columnconfigure(c, weight=1, uniform="cartao_col")
+        for r in range(linhas):
+            area.grid_rowconfigure(r, weight=1, uniform="cartao_row")
+
         for i, (destino, emoji, cor, subtitulo, atalho) in enumerate(itens):
             titulo = "Sair do Sistema" if destino == "__sair__" else destino
             self._botao_menu(area, i, titulo, emoji, cor, subtitulo, destino, atalho)
@@ -136,30 +143,28 @@ class DashboardView(ctk.CTkFrame):
         item = ctk.CTkFrame(
             master, corner_radius=14, fg_color=("gray92", "gray20"),
             border_width=1, border_color=("gray80", "gray30"),
-            width=104, height=148,
         )
-        item.grid(row=coluna // 5, column=coluna % 5, padx=5, pady=5)
-        item.grid_propagate(False)
+        item.grid(row=coluna // 5, column=coluna % 5, padx=6, pady=6, sticky="nsew")
 
         conteudo = ctk.CTkFrame(item, fg_color="transparent")
-        conteudo.place(relx=0.5, rely=0.5, anchor="center")
+        conteudo.pack(padx=6, pady=8, expand=True)
 
         ctk.CTkButton(
-            conteudo, text=emoji, width=60, height=60, corner_radius=12,
-            fg_color=cor, hover_color=cor, font=ctk.CTkFont(size=22),
+            conteudo, text=emoji, width=42, height=42, corner_radius=10,
+            fg_color=cor, hover_color=cor, font=ctk.CTkFont(size=16),
             command=lambda d=destino: self.ao_navegar(d),
         ).pack()
 
         ctk.CTkLabel(
-            conteudo, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
-            wraplength=90, justify="center", height=28,
+            conteudo, text=titulo, font=ctk.CTkFont(size=10, weight="bold"),
+            wraplength=80, justify="center",
         ).pack(pady=(5, 0))
         if atalho:
             ctk.CTkLabel(
-                conteudo, text=atalho, font=ctk.CTkFont(size=8, weight="bold"),
+                conteudo, text=atalho, font=ctk.CTkFont(size=7, weight="bold"),
                 fg_color=cor, text_color="white", corner_radius=5, padx=4,
             ).pack(pady=(2, 0))
         ctk.CTkLabel(
-            conteudo, text=subtitulo, font=ctk.CTkFont(size=8), text_color="gray",
-            wraplength=90, justify="center",
+            conteudo, text=subtitulo, font=ctk.CTkFont(size=7), text_color="gray",
+            wraplength=80, justify="center",
         ).pack(pady=(2, 0))

@@ -36,7 +36,7 @@ from views.estoque_view import EstoqueView
 from views.ajuda_view import AjudaView
 
 # Intervalo entre backups automáticos (em milissegundos): 30 minutos
-INTERVALO_BACKUP_AUTOMATICO_MS = 30 * 60 * 1000
+INTERVALO_BACKUP_AUTOMATICO_MS = 1 * 60 * 1000
 # Intervalo de sincronização com a nuvem (em milissegundos): 10 minutos
 INTERVALO_SYNC_MS = 30 * 1000
 # Intervalo de verificação de bloqueio por pagamento em atraso: 1 hora
@@ -192,7 +192,7 @@ class App(ctk.CTk):
             return  # ainda na tela de login/splash
 
         if nome_tela == "__sair__":
-            self._fechar()
+            self._sair_da_conta()
             return
 
         if not self.usuario_logado.tem_permissao(nome_tela):
@@ -239,6 +239,19 @@ class App(ctk.CTk):
         self.bind("<Control-q>", lambda e: self._fechar())
         self.bind("<F3>", lambda e: self._navegar("Caixa / Venda"))
         self.protocol("WM_DELETE_WINDOW", self._fechar)
+
+    def _sair_da_conta(self) -> None:
+        """Encerra a sessão do usuário e volta para a tela de login, sem fechar o app."""
+        try:
+            sincronizar()
+        except Exception as e:
+            registrar_erro(e, "sincronizar_ao_sair_da_conta")
+        registrar_alteracao(self.usuario_logado.login, "Logout realizado")
+        self.usuario_logado = None
+        self.topbar = None
+        self.tela_atual = None
+        self.conteudo_frame = None
+        self._mostrar_login()
 
     def _fechar(self) -> None:
         try:
